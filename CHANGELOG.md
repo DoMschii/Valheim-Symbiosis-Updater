@@ -1,8 +1,12 @@
 # Changelog
 
-## 1.0.0
-
-- Updater split out of the gameplay repository.
-- Independent updater versioning.
-- Update decisions now compare the latest gameplay release tag with the installed `Valheim_Workers_Mount` suite version instead of the updater's own version.
-- SHA-256 verification and post-exit installation retained.
+## 2.0.0
+- Rebuilt updater as a BepInEx 5 preloader patcher.
+- Update check now happens before normal plugins are loaded.
+- New gameplay DLLs can be applied in the same startup; no second Valheim launch is required.
+- Added SHA-256 validation.
+- Added transactional per-DLL backup/rollback.
+- Added ZIP path-traversal protection.
+- Added configurable startup timeout.
+- Added stable-channel manifest configuration.
+- Setup migrates away from the old post-start updater plugin.

@@ -1,0 +1,44 @@
+Valheim Symbiosis Preloader Updater v2.0.0 - Testplan
+
+1) BUILD
+- Run Setup.ps1.
+EXPECTED:
+- Valheim_Symbiosis_Updater.dll builds successfully against BepInEx/core/Mono.Cecil.dll.
+- DLL is installed under BepInEx/patchers, NOT plugins.
+
+2) NORMAL START WITHOUT LIVE MANIFEST
+- Press Play in Thunderstore.
+EXPECTED:
+- preloader updater attempts the configured stable manifest.
+- if the GitHub manifest does not exist yet, startup continues with installed gameplay DLLs.
+- no second-launch requirement.
+
+3) NO INTERNET
+- disconnect network or use an invalid manifest URL.
+EXPECTED:
+- after timeout, Valheim continues normally.
+- existing gameplay DLLs are unchanged.
+
+4) TEST UPDATE
+- host a manifest with a higher version and a small valid update ZIP.
+- ZIP structure: Payload/plugins/<folder>/<dll>.
+EXPECTED:
+- package downloads before Chainloader.
+- SHA256 verifies.
+- gameplay DLL is replaced.
+- same Valheim start loads the new version.
+
+5) BAD SHA
+EXPECTED:
+- package is rejected.
+- installed DLL remains unchanged.
+
+6) BROKEN APPLY
+- make one destination intentionally unwritable after an earlier file can be replaced.
+EXPECTED:
+- updater attempts rollback of already changed DLLs.
+- startup continues fail-open.
+
+7) OLD UPDATER
+EXPECTED:
+- old plugins/Valheim_Symbiosis/Valheim_Symbiosis_Updater.dll is removed by Setup.ps1 and backed up as .legacy-plugin-v1.bak.

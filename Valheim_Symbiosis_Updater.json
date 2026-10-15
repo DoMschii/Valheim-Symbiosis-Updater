@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "channel": "stable",
+  "manifest_url": "https://raw.githubusercontent.com/DoMschii/Valheim-Symbiosis/main/update/stable.json",
+  "timeout_seconds": 4
+}

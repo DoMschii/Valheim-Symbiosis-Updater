@@ -1,23 +1,74 @@
-# Valheim Symbiosis Updater
+# Valheim Symbiosis Preloader Updater
 
-Independent auto-updater for Valheim Symbiosis.
+Version **2.0.0**
 
-**Updater version:** 1.0.0
+This replaces the old normal BepInEx updater plugin with a **BepInEx 5 preloader patcher**.
 
-The updater has its own version and repository. It does **not** use its own plugin version to decide whether the gameplay mod is outdated. Instead it reads the loaded `Valheim_Workers_Mount` version and compares that suite version with the latest release tag in the configured Valheim Symbiosis repository.
+## Startup flow
 
-## Runtime flow
+1. Thunderstore / r2modman launches Valheim.
+2. BepInEx Preloader discovers `BepInEx/patchers/Valheim_Symbiosis_Updater.dll`.
+3. `Initialize()` checks the configured GitHub manifest synchronously.
+4. If a newer suite is available, the ZIP is downloaded and SHA-256 verified.
+5. `Payload/plugins/**.dll` is copied into the current profile **before the normal Chainloader loads plugins**.
+6. Valheim then continues with the freshly updated DLLs in the same startup.
 
-1. Valheim starts and BepInEx loads the updater.
-2. The updater reads `Valheim_Symbiosis_Update.json` beside its DLL.
-3. It checks the latest GitHub Release in the gameplay repository.
-4. If the release is newer than the installed Mount/suite version, it downloads the standalone installer ZIP plus SHA-256 file.
-5. After Valheim closes, a helper verifies SHA-256 and replaces the packaged Symbiosis DLLs.
+BepInEx 5.4.23.5 discovers preloader patchers through the legacy `TargetDLLs` / `Patch(AssemblyDefinition)` contract and calls `Initialize()` before patch execution. This updater deliberately returns an empty `TargetDLLs` list because it does not rewrite a game assembly; it only needs the early initializer.
 
-The updater itself changes rarely and can be bundled into the standalone installer without coupling its version to gameplay versions.
+## Fail-open behavior
 
-## Development install
+Network errors, GitHub downtime, a bad manifest, timeout, bad ZIP or SHA mismatch **never intentionally block Valheim**. The updater logs the issue and the installed gameplay DLLs remain in use.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Setup.ps1
+If applying an update fails after one or more gameplay DLLs were replaced, the updater attempts to roll those files back from `BepInEx/cache/Valheim_Symbiosis_Updater/backup_*`.
+
+## Config
+
+Installed beside the patcher:
+
+`BepInEx/patchers/Valheim_Symbiosis_Updater.json`
+
+Default:
+
+```json
+{
+  "enabled": true,
+  "channel": "stable",
+  "manifest_url": "https://raw.githubusercontent.com/DoMschii/Valheim-Symbiosis/main/update/stable.json",
+  "timeout_seconds": 4
+}
 ```
+
+## GitHub manifest
+
+The gameplay repository will publish `update/stable.json`.
+
+See `update-manifest.example.json`.
+
+The update ZIP must contain:
+
+```text
+Payload/
+└─ plugins/
+   ├─ Valheim_Workers/
+   │  └─ Valheim_Workers.dll
+   └─ ... other Symbiosis gameplay DLLs ...
+```
+
+The updater itself is intentionally excluded from gameplay update packages and keeps its own version/repository.
+
+## Install
+
+Run `Setup.ps1` or `Setup.bat`.
+
+The setup script installs the patcher into all detected Thunderstore/r2modman Valheim profiles and disables the old v1 normal-plugin updater DLL.
+
+
+## RC / beta testing
+
+The shipped/default configuration stays on `stable`.
+
+For explicit RC testing, replace the installed config with
+`Valheim_Symbiosis_Updater.beta.json`. The RC publisher writes
+`update/beta.json` only after the GitHub release ZIP exists and its SHA-256 is known.
+
+No `stable.json` is published by the RC workflow.

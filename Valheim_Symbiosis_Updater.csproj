@@ -6,33 +6,22 @@
     <AssemblyName>Valheim_Symbiosis_Updater</AssemblyName>
     <RootNamespace>Valheim_Symbiosis_Updater</RootNamespace>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-    <Version>1.0.0</Version>
+    <Version>2.0.0</Version>
     <DebugType>portable</DebugType>
   </PropertyGroup>
+
   <PropertyGroup>
     <BepInExPath Condition="'$(BepInExPath)' == ''">$(VALHEIM_BEPINEX)</BepInExPath>
-    <ValheimManagedPath Condition="'$(ValheimManagedPath)' == ''">$(VALHEIM_MANAGED)</ValheimManagedPath>
   </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="BepInEx">
-      <HintPath>$(BepInExPath)\core\BepInEx.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine">
-      <HintPath>$(ValheimManagedPath)\UnityEngine.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(ValheimManagedPath)\UnityEngine.CoreModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.UnityWebRequestModule">
-      <HintPath>$(ValheimManagedPath)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+    <Reference Include="Mono.Cecil">
+      <HintPath>$(BepInExPath)\core\Mono.Cecil.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
+
   <Target Name="ValidateReferences" BeforeTargets="ResolveReferences">
-    <Error Condition="!Exists('$(BepInExPath)\core\BepInEx.dll')" Text="BepInEx.dll not found." />
-    <Error Condition="!Exists('$(ValheimManagedPath)\UnityEngine.UnityWebRequestModule.dll')" Text="UnityWebRequest module not found." />
+    <Error Condition="!Exists('$(BepInExPath)\core\Mono.Cecil.dll')" Text="Mono.Cecil.dll not found in BepInEx core. This updater targets BepInEx 5." />
   </Target>
 </Project>

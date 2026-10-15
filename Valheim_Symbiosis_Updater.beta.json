@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "channel": "beta",
+  "manifest_url": "https://raw.githubusercontent.com/DoMschii/Valheim-Symbiosis/main/update/beta.json",
+  "timeout_seconds": 4
+}
