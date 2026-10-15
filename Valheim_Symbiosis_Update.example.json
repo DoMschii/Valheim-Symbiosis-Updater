@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "owner": "YOUR_GITHUB_NAME",
+  "repository": "Valheim-Symbiosis",
+  "channel": "stable"
+}
