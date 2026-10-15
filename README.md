@@ -1,6 +1,6 @@
-# Valheim Symbiosis Preloader Updater
+﻿# Valheim Symbiosis Preloader Updater
 
-Version **2.0.0**
+Version **2.0.2**
 
 This replaces the old normal BepInEx updater plugin with a **BepInEx 5 preloader patcher**.
 
@@ -63,12 +63,16 @@ Run `Setup.ps1` or `Setup.bat`.
 The setup script installs the patcher into all detected Thunderstore/r2modman Valheim profiles and disables the old v1 normal-plugin updater DLL.
 
 
-## RC / beta testing
+## 2.0.1 runtime hotfix
 
-The shipped/default configuration stays on `stable`.
+- Workers Core (`Valheim_Workers.dll`) is now the authoritative installed release version.
+  Mount's independent 4.x version is no longer compared to the Workers 0.x release manifest.
+- If the Mono/BepInEx preloader reports `TLS Support not available`, downloads fall back
+  to Windows `curl.exe` while keeping the same timeout and fail-open behavior.
 
-For explicit RC testing, replace the installed config with
-`Valheim_Symbiosis_Updater.beta.json`. The RC publisher writes
-`update/beta.json` only after the GitHub release ZIP exists and its SHA-256 is known.
 
-No `stable.json` is published by the RC workflow.
+## 2.0.2 suite revision hotfix
+
+The installed suite version is now `max(Workers Core version, Valheim_Symbiosis.version)`.
+That lets an RC package use a four-part build revision such as `0.6.0.1` for
+Mount/DrakeForm/Ego fixes without causing an update loop on the next launch.

@@ -1,4 +1,4 @@
-using Mono.Cecil;
+﻿using Mono.Cecil;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -21,10 +21,10 @@ namespace Valheim_Symbiosis_Updater
     /// </summary>
     public static class Patcher
     {
-        public const string UpdaterVersion = "2.0.0";
+        public const string UpdaterVersion = "2.0.2";
         private const string ConfigFileName = "Valheim_Symbiosis_Updater.json";
         private const string VersionMarkerName = "Valheim_Symbiosis.version";
-        private const string UserAgent = "Valheim-Symbiosis-Preloader-Updater/2.0.0";
+        private const string UserAgent = "Valheim-Symbiosis-Preloader-Updater/2.0.2";
 
         // Empty on purpose: this patcher only uses Initialize() as a pre-chainloader
         // bootstrap and does not rewrite any Valheim managed assembly.
@@ -214,49 +214,86 @@ namespace Valheim_Symbiosis_Updater
 
         private static Version GetInstalledSuiteVersion(string bepinExRoot)
         {
+            // Suite release version is the greater of:
+            //   1) Workers Core assembly version
+            //   2) updater-written suite marker
+            //
+            // This keeps manually installed/newer Core builds authoritative while also
+            // allowing a release package to carry a build revision such as 0.6.0.1
+            // when Mount/DrakeForm/Ego changes without bumping Workers Core itself.
+            string plugins = Path.Combine(bepinExRoot, "plugins");
+
+            Version coreVersion = null;
+            string canonicalCore = Path.Combine(plugins, "Valheim_Workers", "Valheim_Workers.dll");
+            coreVersion = TryReadAssemblyVersion(canonicalCore);
+
+            if (coreVersion == null)
+            {
+                try
+                {
+                    string[] matches = Directory.GetFiles(plugins, "Valheim_Workers.dll", SearchOption.AllDirectories);
+                    for (int i = 0; i < matches.Length; i++)
+                    {
+                        Version candidate = TryReadAssemblyVersion(matches[i]);
+                        if (candidate != null && (coreVersion == null || candidate > coreVersion))
+                            coreVersion = candidate;
+                    }
+                }
+                catch { }
+            }
+
+            Version markerVersion = null;
             string marker = Path.Combine(bepinExRoot, VersionMarkerName);
             try
             {
                 if (File.Exists(marker))
-                {
-                    Version v = ParseVersion(File.ReadAllText(marker));
-                    if (v != null) return v;
-                }
+                    markerVersion = ParseVersion(File.ReadAllText(marker));
             }
             catch { }
 
-            string plugins = Path.Combine(bepinExRoot, "plugins");
-            string[] preferred =
-            {
-                "Valheim_Workers_Mount.dll",
-                "Valheim_Workers.dll"
-            };
+            if (coreVersion == null) return markerVersion;
+            if (markerVersion == null) return coreVersion;
+            return markerVersion > coreVersion ? markerVersion : coreVersion;
+        }
 
-            for (int p = 0; p < preferred.Length; p++)
+        private static Version TryReadAssemblyVersion(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
+            try
             {
-                string[] matches;
-                try { matches = Directory.GetFiles(plugins, preferred[p], SearchOption.AllDirectories); }
-                catch { matches = Array.Empty<string>(); }
-
-                for (int i = 0; i < matches.Length; i++)
-                {
-                    try
-                    {
-                        AssemblyName name = AssemblyName.GetAssemblyName(matches[i]);
-                        if (name != null && name.Version != null)
-                            return name.Version;
-                    }
-                    catch { }
-                }
+                AssemblyName name = AssemblyName.GetAssemblyName(path);
+                return name != null ? name.Version : null;
             }
-
-            return null;
+            catch
+            {
+                return null;
+            }
         }
 
         private static string DownloadText(string url, int timeoutMs)
         {
-            using (TimeoutWebClient client = CreateClient(timeoutMs))
-                return client.DownloadString(url);
+            try
+            {
+                using (TimeoutWebClient client = CreateClient(timeoutMs))
+                    return client.DownloadString(url);
+            }
+            catch (Exception ex)
+            {
+                Info("Managed TLS download unavailable (" + ex.GetType().Name +
+                     ": " + ex.Message + "); retrying through Windows curl.exe.");
+
+                string temp = Path.Combine(Path.GetTempPath(),
+                    "Valheim_Symbiosis_manifest_" + Guid.NewGuid().ToString("N") + ".json");
+                try
+                {
+                    DownloadFileWithCurl(url, temp, timeoutMs);
+                    return File.ReadAllText(temp);
+                }
+                finally
+                {
+                    TryDeleteFile(temp);
+                }
+            }
         }
 
         private static void DownloadFile(string url, string path, int timeoutMs)
@@ -264,11 +301,93 @@ namespace Valheim_Symbiosis_Updater
             string dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
 
-            using (TimeoutWebClient client = CreateClient(timeoutMs))
-                client.DownloadFile(url, path);
+            try
+            {
+                using (TimeoutWebClient client = CreateClient(timeoutMs))
+                    client.DownloadFile(url, path);
+            }
+            catch (Exception ex)
+            {
+                Info("Managed TLS package download unavailable (" + ex.GetType().Name +
+                     ": " + ex.Message + "); retrying through Windows curl.exe.");
+                TryDeleteFile(path);
+                DownloadFileWithCurl(url, path, timeoutMs);
+            }
 
             if (!File.Exists(path) || new FileInfo(path).Length <= 0)
                 throw new IOException("Downloaded update package is empty.");
+        }
+
+        private static void DownloadFileWithCurl(string url, string path, int timeoutMs)
+        {
+            string curl = ResolveCurlExecutable();
+            if (string.IsNullOrWhiteSpace(curl))
+                throw new InvalidOperationException(
+                    "Managed TLS is unavailable and curl.exe could not be found.");
+
+            int timeoutSeconds = Math.Max(1, (int)Math.Ceiling(timeoutMs / 1000.0));
+            string args =
+                "--fail --silent --show-error --location " +
+                "--connect-timeout " + timeoutSeconds + " " +
+                "--max-time " + timeoutSeconds + " " +
+                "-A " + QuoteProcessArgument(UserAgent) + " " +
+                "-o " + QuoteProcessArgument(path) + " " +
+                QuoteProcessArgument(url);
+
+            ProcessStartInfo psi = new ProcessStartInfo
+            {
+                FileName = curl,
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true
+            };
+
+            using (Process process = Process.Start(psi))
+            {
+                if (process == null)
+                    throw new InvalidOperationException("curl.exe could not be started.");
+
+                string stdout = process.StandardOutput.ReadToEnd();
+                string stderr = process.StandardError.ReadToEnd();
+
+                if (!process.WaitForExit(timeoutMs + 2500))
+                {
+                    try { process.Kill(); } catch { }
+                    throw new TimeoutException("curl.exe update request timed out.");
+                }
+
+                if (process.ExitCode != 0)
+                {
+                    string detail = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
+                    throw new WebException("curl.exe failed with exit code " +
+                                           process.ExitCode + ": " + detail.Trim());
+                }
+            }
+        }
+
+        private static string ResolveCurlExecutable()
+        {
+            try
+            {
+                string windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                if (!string.IsNullOrWhiteSpace(windows))
+                {
+                    string systemCurl = Path.Combine(windows, "System32", "curl.exe");
+                    if (File.Exists(systemCurl)) return systemCurl;
+                }
+            }
+            catch { }
+
+            // Allow PATH lookup as fallback.
+            return "curl.exe";
+        }
+
+        private static string QuoteProcessArgument(string value)
+        {
+            if (value == null) return "\"\"";
+            return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
         }
 
         private static TimeoutWebClient CreateClient(int timeoutMs)

@@ -1,7 +1,7 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$Version = '2.0.0'
+$Version = '2.0.2'
 $Root = $PSScriptRoot
 
 $ProfileRoots = @(
@@ -75,7 +75,7 @@ foreach ($bep in $targets) {
     $destCfg = Join-Path $patcherDir 'Valheim_Symbiosis_Updater.json'
 
     if (Test-Path $destDll) {
-        Copy-Item $destDll ($destDll + '.pre-v2.0.0.bak') -Force
+        Copy-Item $destDll ($destDll + '.pre-v2.0.2.bak') -Force
     }
 
     Copy-Item $dll $destDll -Force
